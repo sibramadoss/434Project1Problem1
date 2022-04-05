@@ -90,7 +90,7 @@ int main(int argc, char *argv[]){
 int childProcessCode(int index){
 	int package[4];
 	int n = read(fd[0], &package, 4*sizeof(int));
-	int linestoRead = package[0]/package[1]+1;
+	int linestoRead = package[0]/package[1];
 	int len = package[2];
 	int offset = package[3];
 	int count = 0;
@@ -102,7 +102,7 @@ int childProcessCode(int index){
 	int c;
 	char num[len];
 	int ii = 0;
-	for(int i = offset; i < len; i++){
+	for(int i = offset; i < len+10; i++){
 		fseek(fp, i, SEEK_SET);
 		c = fgetc(fp);
 		if(feof(fp)){ break; }
