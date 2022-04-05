@@ -12,6 +12,7 @@ char *numHiddenKeys = "10";
 int PN = 4;//THIS SHOULD BE INCREASED FOR BETTER ALGORITHM PERFORMANCE
 int fd[2];
 int cd[2];
+int final[2];
 int factor = 100000; //Factor to bind the random numbers by, increase or decrease to change random number range 0 < num < factor + 1
 int len;
 FILE *fp;
@@ -21,7 +22,7 @@ void emptyScan();
 int addLines(FILE *tfp);
 int createChildProcesses(int pn, pid_t *pid);
 int childProcessCode(int index);
-int *childProcessMethod(int *array, int count);
+float *childProcessMethod(int *array, int count, int index);
 int *fileArray;//Will be the addresses to integers
 //------------------------------------------
 
@@ -45,16 +46,42 @@ int main(int argc, char *argv[]){
 	printf("Length of file is %d bytes\n", len);
 	//Here we are going to get H from the user
 	H = getUserInput("H");
-	q = createChildProcesses(PN, pid);
 	int offset = 0;
 	int rec;
+	q = createChildProcesses(PN, pid);
 	//This allows the child processes to read the file and process the information
 	for(int w=0; w < PN; w++){
 		int package[4] = {L, PN, len, offset};
 		write(fd[1],package,4*sizeof(int));
-		wait(NULL);
-		read(cd[0], &rec, sizeof(int));
+		read(cd[0], &rec, len);
 		offset = offset + rec;
+	}
+	printf("%d total processes created to handle this task\n",q);
+	float hiddenkeys[atoi(numHiddenKeys)];
+	float numberlinesread;
+	int count = 0;
+	float newpackage[len];
+	float packageSize = 0;
+	int byte = 1;
+	float finalmaxnum = 0;
+	float finalavg = 0;
+	for(int r = 0; r < PN; r++){
+		read(final[0], &packageSize, sizeof(float));
+		read(final[0], &newpackage, (packageSize)*sizeof(float));
+		for(int i = 5; i < packageSize; i++){
+			hiddenkeys[count] = newpackage[i] + numberlinesread;
+			count+=1;
+		}
+		if(newpackage[3] > finalmaxnum){finalmaxnum = newpackage[3];}
+		finalavg = finalavg + newpackage[4] * (float) newpackage[1]/(float)L;
+		numberlinesread = numberlinesread + newpackage[1];
+	}
+	if(count > H) count = H;
+	printf("Calculated final average to be %f\n", finalavg);
+	printf("Maximum number found was %f\n", finalmaxnum);
+	printf("Found %d hidden keys out of %d requested out of %d total hidden keys\n", count, H, atoi(numHiddenKeys));
+	for(int p = 0; p < H; p++){
+		printf("Key %d found at line : %f\n", p, hiddenkeys[p]);
 	}
 	printf("Parent process finished\n");
 }
@@ -64,7 +91,7 @@ int main(int argc, char *argv[]){
 int childProcessCode(int index){
 	int package[4];
 	int n = read(fd[0], &package, 4*sizeof(int));
-	int linestoRead = package[0]/package[1] + 1;
+	int linestoRead = package[0]/package[1]+2;
 	int len = package[2];
 	int offset = package[3];
 	int count = 0;
@@ -78,54 +105,55 @@ int childProcessCode(int index){
 	int ii = 0;
 	for(int i = 0; i < len; i++){
 		c = fgetc(nfp);
-		if(c == EOF){ break; }
+		if(feof(nfp) || count>linestoRead){ break; }
 		if(c == '\n'){
+			num[numindex++] = '\0';
 			array[count] = atoi(num);
 			count +=1;
 			numindex = 0;
 			num[0] = 0;
-		}
-		num[numindex++] = c;
-		if(count >= linestoRead){
-			i = len+1;
+		}else{
+			num[numindex++] = c;
 		}
 		ii++;
 	}
+	printf("Child process %d read %d lines from file\n", getpid(), count);
 	write(cd[1], &ii, sizeof(int));
-	childProcessMethod(array, count);
-	
-}
-
-
-int *childProcessMethod(int *array, int count){
 	//Now we can get the total and max from array
 	float weightAvg;
-	int maxNum;
-	int *hiddenkeys;
-	int sum;
+	float maxNum = 0;
+	float hiddenkeys[len];
+	float sum;
 	int countKeys = 0;
 	for(int x = 0; x < count; x++){
 		//Hidden keys is going to hold the natural indicies of the negative integers
-		if(array[x] == -1){ hiddenkeys[countKeys] = x; }
 		if(array[x] > maxNum){
 			maxNum = array[x];
 		}
+		if(array[x] == -1){
+			hiddenkeys[countKeys] = (float)x;
+			countKeys++;
+		}
 		sum = sum + array[x];
 	}
-	weightAvg = sum/count;
-	printf("process %d read %d integers from file\n",getpid(), count);
-	printf("found max number %d ", maxNum);
-	printf("weighted average found for child process %f \n", weightAvg);
-	int *package;
-	int packageSize =2;
-	package[1] = maxNum;
-	package[2] = weightAvg;
+	weightAvg = (sum/(float)count);
+	//printf("found max number %f ", maxNum);
+	//printf("weighted average found for child process %f \n", weightAvg);
+	//printf("hidden keys found for child process %d \n", countKeys);
+	float newpackage[len];
+	float packageSize = 5;
+	newpackage[1] = (float) count;
+	newpackage[2] = (float) index;
+	newpackage[3] = maxNum;
+	newpackage[4] = weightAvg;
 	for(int i = 0; i < countKeys; i++){
-		package[i+3] = hiddenkeys[i];
+		newpackage[i+5] = hiddenkeys[i];
 		packageSize = packageSize + 1;
 	}
-	package[0] = packageSize;
-	return package;
+	newpackage[0] = packageSize;
+	int byte;
+	write(final[1], &packageSize, sizeof(float));
+	write(final[1], newpackage, packageSize * sizeof(float));
 }
 
 //Method is used to create PN number of child processes and print their PID then prints amount created
@@ -134,6 +162,7 @@ int createChildProcesses(int pn, pid_t *pid){
 	int totalChildProc = 0;
 	pipe(fd);
 	pipe(cd);
+	pipe(final);
 	for(int i = 0; i< pn; i++){
 		pid[i] = fork();
 		if(pid[i] < 0){
@@ -152,7 +181,6 @@ int createChildProcesses(int pn, pid_t *pid){
 			totalChildProc = totalChildProc +1;
 		}
 	}
-	printf("%d total processes created\n", totalChildProc);
 	return totalChildProc;
 }
 
@@ -165,10 +193,6 @@ int addLines(FILE *tfp){
 	int totalHidden =0;
 	for(int i=0; i < L; i++){
 		r = (rand()+1) % factor; // Add one so we only get values > 0
-		if(((r % 5)==0) && totalHidden < atoi(numHiddenKeys)){
-			r = -1;
-			totalHidden +=1;
-		}
 		int c = fprintf(tfp, "%d\n", r);
 		if( c > 0 ){
 			fileArray[i] = r;
@@ -179,6 +203,11 @@ int addLines(FILE *tfp){
 	printf("Random Number File populated with %d lines out of ", total);
 	printf("%d\n",L);
 	len = ftell(tfp);
+	for(int x =0 ; x < atoi(numHiddenKeys); x++){
+		r = (rand() + 1) % len-1;
+		fseek(tfp, r, SEEK_SET);
+		fprintf(tfp, "\n-1\n");
+	}
 	fclose(tfp);
 	return total;
 }
