@@ -13,7 +13,7 @@ int PN = 4;//THIS SHOULD BE INCREASED FOR BETTER ALGORITHM PERFORMANCE
 int fd[2];
 int cd[2];
 int final[2];
-int factor = 100000; //Factor to bind the random numbers by, increase or decrease to change random number range 0 < num < factor + 1
+int factor = 10000; //Factor to bind the random numbers by, increase or decrease to change random number range 0 < num < factor + 1
 int len;
 FILE *fp;
 //FUNCTION DECLARATIONS
@@ -27,6 +27,8 @@ int *fileArray;//Will be the addresses to integers
 //------------------------------------------
 
 int main(int argc, char *argv[]){
+	double time_spent = 0;
+	clock_t begin = clock();
 	pid_t pid[PN];
 	//Set the seed for the random number
 	srand(time(0));
@@ -56,11 +58,10 @@ int main(int argc, char *argv[]){
 		read(cd[0], &rec, sizeof(int));
 		offset = offset + rec;
 	}
-	printf("%d total processes created to handle this task\n",q);
 	float hiddenkeys[atoi(numHiddenKeys)];
 	float numberlinesread;
 	int count = 0;
-	float newpackage[len];
+	float newpackage[factor];
 	float packageSize = 0;
 	float finalmaxnum = 0;
 	float finalavg = 0;
@@ -82,7 +83,9 @@ int main(int argc, char *argv[]){
 	for(int p = 0; p < H; p++){
 		printf("Key %d found at line : %f\n", (p+1), hiddenkeys[p]);
 	}
-	printf("Parent process finished\n");
+	clock_t end = clock();
+	time_spent += (double)(end-begin)/CLOCKS_PER_SEC;
+	printf("Parent process finished, time elapsed %f seconds\n", time_spent);
 }
 
 
@@ -100,9 +103,9 @@ int childProcessCode(int index){
 	fp = fopen("RandomNumFile","r");
 	if(fp == NULL){ printf("%d could not open file", getpid()); }
 	int c;
-	char num[len];
+	char num[factor];
 	int ii = 0;
-	for(int i = offset; i < len+10; i++){
+	for(int i = offset; i < len; i++){
 		fseek(fp, i, SEEK_SET);
 		c = fgetc(fp);
 		if(feof(fp)){ break; }
@@ -124,7 +127,7 @@ int childProcessCode(int index){
 	//Now we can get the total and max from array
 	float weightAvg;
 	float maxNum = 0;
-	float hiddenkeys[len];
+	float hiddenkeys[factor];
 	float sum;
 	int countKeys = 0;
 	for(int x = 0; x < count; x++){
@@ -139,7 +142,7 @@ int childProcessCode(int index){
 		sum = sum + array[x];
 	}
 	weightAvg = (sum/(float)count);
-	float newpackage[len];
+	float newpackage[factor];
 	float packageSize = 5;
 	newpackage[1] = (float) count;
 	newpackage[2] = (float) index;
