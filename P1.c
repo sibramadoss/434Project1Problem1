@@ -49,11 +49,17 @@ int main(int argc, char *argv[]){
 	//Here we are going to get H from the user
 	H = getUserInput("H");
 	int offset = 0;
-	int rec;
+	int rec = 0;
 	q = createChildProcesses(PN, pid);
 	//This allows the child processes to read the file and process the information
+	float rem;
+	rem = L%PN;
+	int tempLength;
+	L = L/PN;
+	if(rem !=0){ tempLength = L; L = L + rem;}
 	for(int w=0; w < PN; w++){
 		int package[4] = {L, PN, len, offset};
+		L = tempLength;
 		write(fd[1],package,4*sizeof(int));
 		read(cd[0], &rec, sizeof(int));
 		offset = offset + rec;
@@ -93,7 +99,7 @@ int main(int argc, char *argv[]){
 int childProcessCode(int index){
 	int package[4];
 	int n = read(fd[0], &package, 4*sizeof(int));
-	int linestoRead = package[0]/package[1];
+	int linestoRead = package[0];
 	int len = package[2];
 	int offset = package[3];
 	int count = 0;
@@ -105,7 +111,7 @@ int childProcessCode(int index){
 	int c;
 	char num[factor];
 	int ii = 0;
-	for(int i = offset; i < len; i++){
+	for(int i = offset; i <= len; i++){
 		fseek(fp, i, SEEK_SET);
 		c = fgetc(fp);
 		if(feof(fp)){ break; }
@@ -118,10 +124,10 @@ int childProcessCode(int index){
 		}else{
 			num[numindex++] = c;
 		}
-		ii++;
-		if(count >= linestoRead){break;}
+		ii = ii + sizeof(char);
+		if(count > linestoRead){break;}
 	}
-	printf("Child process %d read %d lines from file\n", getpid(), count);
+	printf("Child process %d read %d lines from file\n", getpid(), count-1);
 	write(cd[1], &ii, sizeof(int));
 	fclose(fp);
 	//Now we can get the total and max from array
