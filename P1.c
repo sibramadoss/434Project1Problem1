@@ -13,7 +13,7 @@ int PN = 4;//THIS SHOULD BE INCREASED FOR BETTER ALGORITHM PERFORMANCE
 int fd[2];
 int cd[2];
 int final[2];
-int factor = 10000; //Factor to bind the random numbers by, increase or decrease to change random number range 0 < num < factor + 1
+int factor = 1000; //Factor to bind the random numbers by, increase or decrease to change random number range 0 < num < factor + 1
 int len;
 FILE *fp;
 //FUNCTION DECLARATIONS
@@ -49,17 +49,11 @@ int main(int argc, char *argv[]){
 	//Here we are going to get H from the user
 	H = getUserInput("H");
 	int offset = 0;
-	int rec = 0;
+	int rec;
 	q = createChildProcesses(PN, pid);
 	//This allows the child processes to read the file and process the information
-	float rem;
-	rem = L%PN;
-	int tempLength;
-	L = L/PN;
-	if(rem !=0){ tempLength = L; L = L + rem;}
 	for(int w=0; w < PN; w++){
 		int package[4] = {L, PN, len, offset};
-		L = tempLength;
 		write(fd[1],package,4*sizeof(int));
 		read(cd[0], &rec, sizeof(int));
 		offset = offset + rec;
@@ -87,7 +81,7 @@ int main(int argc, char *argv[]){
 	printf("Maximum number found was %f\n", finalmaxnum);
 	printf("Found %d hidden keys out of %d requested out of %d total hidden keys\n", count, H, atoi(numHiddenKeys));
 	for(int p = 0; p < H; p++){
-		printf("Key %d found at line : %f\n", (p+1), hiddenkeys[p]);
+		printf("Hi I'm process %d and I found the hidden key %d found at line : %f\n",getpid(), (p+1), hiddenkeys[p]);
 	}
 	clock_t end = clock();
 	time_spent += (double)(end-begin)/CLOCKS_PER_SEC;
@@ -99,19 +93,19 @@ int main(int argc, char *argv[]){
 int childProcessCode(int index){
 	int package[4];
 	int n = read(fd[0], &package, 4*sizeof(int));
-	int linestoRead = package[0];
+	int linestoRead = package[0]/package[1];
 	int len = package[2];
 	int offset = package[3];
 	int count = 0;
 	int array[linestoRead];
 	int numindex = 0;
-	printf("child process %d read data from buffer and will attempt to read %d lines, of the total %d bytes starting from %d\n", getpid(), linestoRead, len, offset);
+	//printf("child process %d read data from buffer and will attempt to read %d lines, of the total %d bytes starting from %d\n", getpid(), linestoRead, len, offset);
 	fp = fopen("RandomNumFile","r");
 	if(fp == NULL){ printf("%d could not open file", getpid()); }
 	int c;
 	char num[factor];
 	int ii = 0;
-	for(int i = offset; i <= len; i++){
+	for(int i = offset; i < len; i++){
 		fseek(fp, i, SEEK_SET);
 		c = fgetc(fp);
 		if(feof(fp)){ break; }
@@ -124,10 +118,10 @@ int childProcessCode(int index){
 		}else{
 			num[numindex++] = c;
 		}
-		ii = ii + sizeof(char);
-		if(count > linestoRead){break;}
+		ii++;
+		if(count >= linestoRead){break;}
 	}
-	printf("Child process %d read %d lines from file\n", getpid(), count-1);
+	//printf("Child process %d read %d lines from file\n", getpid(), count);
 	write(cd[1], &ii, sizeof(int));
 	fclose(fp);
 	//Now we can get the total and max from array
@@ -177,15 +171,15 @@ int createChildProcesses(int pn, pid_t *pid){
 			printf("Something went wrong and child process could not be created\n");
 		}else if(pid[i] == 0){
 			//Child process code will call a seperate method
-			printf("Child process %d has been created\n", getpid());
+			printf("Hi I'm child process %d has been created and my parent is %d\n", getpid(), getppid());
 			childProcessCode(i);
-			printf("Child Process %d has terminated\n", getpid());
+			printf("Child process %d has terminated\n", getpid());
 			exit(10);
 		}else{
 			//close(fd[0]); //Close reading end of pipe for parent
 			//close(cd[1]); //Close writing end of pipe for parent
 			//Parent process doesnt do anything but continue the loop
-			printf("Child process %d\n", pid[i]);
+			//printf("Child process %d\n", pid[i]);
 			totalChildProc = totalChildProc +1;
 		}
 	}
@@ -263,3 +257,4 @@ void emptyScan(){
 	while( c!= '\n' && c != EOF)
 		c = getchar();
 }
+
